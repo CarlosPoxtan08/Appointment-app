@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
@@ -21,7 +22,8 @@ class UserController extends Controller
      */
     public function create()
     {
-        return view('admin.users.create');
+        $roles = Role::pluck('name', 'name')->toArray();
+        return view('admin.users.create', compact('roles'));
     }
 
     /**
@@ -29,7 +31,33 @@ class UserController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        // Validar los datos del formulario
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email|max:255',
+            'id_number' => 'required|string|unique:users,id_number|max:20',
+            'phone' => 'required|string|max:20',
+            'password' => 'required|string|min:8|confirmed',
+            'address' => 'required|string|max:500',
+            'role' => 'required|string|exists:roles,name',
+        ]);
+
+        // Crear el usuario
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'id_number' => $validated['id_number'],
+            'phone' => $validated['phone'],
+            'password' => bcrypt($validated['password']),
+            'address' => $validated['address'],
+        ]);
+
+        // Asignar el rol al usuario
+        $user->assignRole($validated['role']);
+
+        // Redirigir con mensaje de éxito
+        return redirect()->route('admin.users.index')
+            ->with('success', 'Usuario creado exitosamente.');
     }
 
     /**
