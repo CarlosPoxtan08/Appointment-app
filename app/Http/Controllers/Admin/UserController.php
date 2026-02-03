@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Patient;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Role;
@@ -55,9 +56,31 @@ class UserController extends Controller
         // Asignar el rol al usuario
         $user->assignRole($validated['role']);
 
+        // Si el rol es Paciente, crear registro en la tabla patients (relación 1:1)
+        if ($validated['role'] === 'Paciente') {
+            Patient::create([
+                'user_id' => $user->id,
+                'date_of_birth' => now()->subYears(18)->format('Y-m-d'),
+                'gender' => 'other',
+                'emergency_contact_name' => 'Por definir',
+                'emergency_contact_phone' => '0000000000',
+            ]);
+
+            return redirect()->route('admin.patients.index')
+                ->with('swal', [
+                    'title' => 'Paciente creado',
+                    'text' => 'Complete la información médica del paciente.',
+                    'icon' => 'success',
+                ]);
+        }
+
         // Redirigir con mensaje de éxito
         return redirect()->route('admin.users.index')
-            ->with('success', 'Usuario creado exitosamente.');
+            ->with('swal', [
+                'title' => 'Usuario creado',
+                'text' => 'El usuario ha sido creado exitosamente.',
+                'icon' => 'success',
+            ]);
     }
 
     /**
@@ -97,6 +120,10 @@ class UserController extends Controller
         $user->delete();
 
         return redirect()->route('admin.users.index')
-            ->with('success', 'Usuario eliminado exitosamente.');
+            ->with('swal', [
+                'title' => 'Usuario eliminado',
+                'text' => 'El usuario ha sido eliminado exitosamente.',
+                'icon' => 'success',
+            ]);
     }
 }
