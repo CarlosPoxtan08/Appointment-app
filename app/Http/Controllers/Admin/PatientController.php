@@ -112,16 +112,11 @@ class PatientController extends Controller
      */
     public function update(Request $request, Patient $patient)
     {
-        // Validar los datos del formulario
+        // Validar los datos editables del paciente
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $patient->user_id . '|max:255',
-            'id_number' => 'required|string|unique:users,id_number,' . $patient->user_id . '|max:20',
-            'phone' => 'required|string|max:20',
-            'password' => 'nullable|string|min:8|confirmed',
-            'address' => 'required|string|max:500',
             'date_of_birth' => 'required|date|before:today',
             'gender' => 'required|in:male,female,other',
+            'id_number' => 'required|string|unique:users,id_number,' . $patient->user_id . '|max:20',
             'blood_type_id' => 'nullable|exists:blood_types,id',
             'allergies' => 'nullable|string',
             'chronic_conditions' => 'nullable|string',
@@ -132,27 +127,16 @@ class PatientController extends Controller
             'emergency_relationship' => 'nullable|string|max:100',
         ]);
 
-        // Actualizar el usuario
-        $userData = [
-            'name' => $validated['name'],
-            'email' => $validated['email'],
+        // Actualizar id_number en el usuario
+        $patient->user->update([
             'id_number' => $validated['id_number'],
-            'phone' => $validated['phone'],
-            'address' => $validated['address'],
-        ];
-
-        // Solo actualizar contraseña si se proporcionó una nueva
-        if (!empty($validated['password'])) {
-            $userData['password'] = bcrypt($validated['password']);
-        }
-
-        $patient->user->update($userData);
+        ]);
 
         // Actualizar el registro de paciente
         $patient->update([
-            'blood_type_id' => $validated['blood_type_id'],
             'date_of_birth' => $validated['date_of_birth'],
             'gender' => $validated['gender'],
+            'blood_type_id' => $validated['blood_type_id'],
             'allergies' => $validated['allergies'],
             'chronic_conditions' => $validated['chronic_conditions'],
             'surgical_history' => $validated['surgical_history'],

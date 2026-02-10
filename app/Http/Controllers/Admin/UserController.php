@@ -96,7 +96,8 @@ class UserController extends Controller
      */
     public function edit(User $user)
     {
-        return view('admin.users.edit', compact('user'));
+        $roles = Role::pluck('name', 'name')->toArray();
+        return view('admin.users.edit', compact('user', 'roles'));
     }
 
     /**
@@ -104,7 +105,38 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user)
     {
-        //
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,' . $user->id . '|max:255',
+            'password' => 'nullable|string|min:8|confirmed',
+            'id_number' => 'required|string|unique:users,id_number,' . $user->id . '|max:20',
+            'phone' => 'required|string|max:20',
+            'address' => 'required|string|max:500',
+            'role' => 'required|string|exists:roles,name',
+        ]);
+
+        $userData = [
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'id_number' => $validated['id_number'],
+            'phone' => $validated['phone'],
+            'address' => $validated['address'],
+        ];
+
+        if (!empty($validated['password'])) {
+            $userData['password'] = bcrypt($validated['password']);
+        }
+
+        $user->update($userData);
+
+        $user->syncRoles($validated['role']);
+
+        return redirect()->route('admin.users.index')
+            ->with('swal', [
+                'title' => 'Usuario actualizado',
+                'text' => 'El usuario ha sido actualizado exitosamente.',
+                'icon' => 'success',
+            ]);
     }
 
     /**
