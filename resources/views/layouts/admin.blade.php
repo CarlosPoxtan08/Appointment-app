@@ -46,6 +46,7 @@
     @stack('modals')
 
     <!-- Livewire Scripts -->
+    @wireUiScripts
     @livewireScripts
 
     <!-- Flowbite -->
