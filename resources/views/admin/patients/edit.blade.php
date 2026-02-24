@@ -36,7 +36,9 @@
     </div>
 
     {{-- Navegación de pestañas --}}
-    {{--<div class="mb-4 border-b border-gray-200">--}}
+    <div class="mb-4 border-b border-gray-200">
+        <ul class="flex flex-wrap -mb-px text-sm font-medium text-center text-gray-500"
+            id="patientTabs" data-tabs-toggle="#patientTabContent" role="tablist">
             <li class="me-2" role="presentation">
                 <button class="inline-flex items-center gap-2 p-4 border-b-2 rounded-t-lg" id="personal-tab"
                     data-tabs-target="#personal" type="button" role="tab" aria-controls="personal" aria-selected="true">
@@ -69,8 +71,8 @@
                     <span id="emergency-error-badge" class="hidden w-2 h-2 rounded-full bg-red-500"></span>
                 </button>
             </li>
-        {{--</ul>--}}
-    {{--</div>--}}
+        </ul>
+    </div>
 
     {{-- Formulario que envuelve todas las pestañas --}}
     <form id="edit-patient-form" action="{{ route('admin.patients.update', $patient) }}" method="POST">
@@ -144,17 +146,17 @@
                     </x-wire-input>
 
                     <div class="space-y-1">
-                        <x-wire-native-select 
-                            label="Género" 
-                            name="gender" 
+                        <x-wire-native-select
+                            label="Género"
+                            name="gender"
                             :options="[
                                 ['name' => 'Masculino', 'id' => 'male'],
                                 ['name' => 'Femenino', 'id' => 'female'],
                                 ['name' => 'Otro', 'id' => 'other']
-                            ]" 
-                            option-label="name" 
+                            ]"
+                            option-label="name"
                             option-value="id"
-                            placeholder="Seleccione género" 
+                            placeholder="Seleccione género"
                             :value="old('gender', match(strtolower($patient->gender ?? '')) {
                                 'male', 'm', 'masculino' => 'male',
                                 'female', 'f', 'femenino' => 'female',

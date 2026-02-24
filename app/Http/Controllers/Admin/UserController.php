@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -70,6 +71,23 @@ class UserController extends Controller
                 ->with('swal', [
                     'title' => 'Paciente creado',
                     'text' => 'Complete la información médica del paciente.',
+                    'icon' => 'success',
+                ]);
+        }
+
+        // Si el rol es Doctor, crear registro en la tabla doctors (relación 1:1)
+        if ($validated['role'] === 'Doctor') {
+            $doctor = Doctor::create([
+                'user_id' => $user->id,
+                'specialty_id' => null,
+                'license' => null,
+                'biography' => null,
+            ]);
+
+            return redirect()->route('admin.doctors.edit', $doctor->id)
+                ->with('swal', [
+                    'title' => 'Doctor creado',
+                    'text' => 'Doctor creado exitosamente. Complete la información médica.',
                     'icon' => 'success',
                 ]);
         }
