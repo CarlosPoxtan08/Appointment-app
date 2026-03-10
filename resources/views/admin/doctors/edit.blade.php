@@ -84,4 +84,6 @@
         </div>
     </form>
 
+    <livewire:admin.doctors.schedule-form :doctor="$doctor" />
+
 </x-admin-layout>

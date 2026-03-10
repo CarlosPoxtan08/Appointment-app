@@ -18,5 +18,19 @@ Route::middleware([
         Route::get('/doctors', [DoctorController::class, 'index'])->name('doctors.index');
         Route::get('/doctors/{id}/edit', [DoctorController::class, 'edit'])->name('doctors.edit');
         Route::put('/doctors/{id}', [DoctorController::class, 'update'])->name('doctors.update');
+
+        //Appointments
+        Route::view('/appointments', 'admin.appointments.index')->name('appointments.index');
+        Route::get('/appointments/create', \App\Livewire\Admin\Appointments\CreateAppointment::class)->name('appointments.create');
+        Route::get('/appointments/{appointment}/edit', \App\Livewire\Admin\Appointments\EditAppointment::class)->name('appointments.edit');
+        Route::delete('/appointments/{appointment}', function (\App\Models\Appointment $appointment) {
+            $appointment->delete();
+            session()->flash('swal', [
+                'icon' => 'success',
+                'title' => 'Cita Eliminada',
+                'text' => 'La cita ha sido eliminada correctamente.'
+            ]);
+            return redirect()->route('admin.appointments.index');
+        })->name('appointments.destroy');
     });
 });
