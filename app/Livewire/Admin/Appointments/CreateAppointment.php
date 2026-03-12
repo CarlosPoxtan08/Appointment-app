@@ -6,113 +6,138 @@ use Livewire\Component;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Specialty;
-use App\Models\Schedule;
 use App\Models\Appointment;
+use App\Models\Schedule;
 use Carbon\Carbon;
 
 class CreateAppointment extends Component
 {
-    public $patient_id;
-    public $doctor_id;
-    public $specialty_id;
-    public $date;
-    public $start_time;
+    // Search Criteria
+    public $searchDate;
+    public $searchTimeRange = '';
+    public $searchSpecialty = '';
 
-    public function rules()
+    // Search Results
+    public $availableDoctors = [];
+
+    // Selected Slot Details
+    public $selectedDoctorId = null;
+    public $selectedDoctorName = null;
+    public $selectedTime = null;
+    
+    // Form Details
+    public $patient_id = '';
+    public $notes = '';
+
+    public function mount()
     {
-        return [
-            'patient_id' => 'required|exists:patients,id',
-            'doctor_id' => 'required|exists:doctors,id',
-            'specialty_id' => 'nullable|exists:specialties,id',
-            'date' => 'required|date|after_or_equal:today',
-            'start_time' => 'required',
-        ];
+        $this->searchDate = Carbon::tomorrow()->format('Y-m-d');
     }
 
-    // Al actualizar el doctor o la fecha, resetear la hora
-    public function updatedDoctorId()
+    public function searchAvailability()
     {
-        $this->start_time = null;
-    }
+        $this->validate([
+            'searchDate' => 'required|date',
+        ]);
 
-    public function updatedDate()
-    {
-        $this->start_time = null;
-    }
+        $dayOfWeek = Carbon::parse($this->searchDate)->dayOfWeek;
 
-    public function getAvailableSlotsProperty()
-    {
-        if (!$this->date || !$this->doctor_id) {
-            return [];
+        $query = Doctor::with(['user', 'specialty']);
+        
+        if ($this->searchSpecialty) {
+            $query->where('specialty_id', $this->searchSpecialty);
         }
 
-        $carbonDate = Carbon::parse($this->date);
-        $dayOfWeek = $carbonDate->dayOfWeek; // 0 Sunday, 1 Monday, ...
+        $doctors = $query->get();
+        $this->availableDoctors = [];
 
-        $schedules = Schedule::where('doctor_id', $this->doctor_id)
-            ->where('day_of_week', (string)$dayOfWeek)
-            ->get();
+        foreach ($doctors as $doctor) {
+            $schedules = Schedule::where('doctor_id', $doctor->id)
+                ->where('day_of_week', $dayOfWeek)
+                ->get();
+            
+            $slots = [];
+            foreach ($schedules as $schedule) {
+                // If a time range was selected, we could filter here. For now we generate all slots.
+                $start = Carbon::parse($schedule->start_time);
+                $end = Carbon::parse($schedule->end_time);
 
-        if ($schedules->isEmpty()) {
-            return [];
-        }
-
-        $existingAppointments = Appointment::where('doctor_id', $this->doctor_id)
-            ->whereDate('date', $this->date)
-            ->where('status', '!=', 'Cancelado')
-            ->get();
-
-        $slots = [];
-        $duration = 40;
-
-        foreach ($schedules as $schedule) {
-            $startTime = Carbon::parse($schedule->start_time);
-            $endTime = Carbon::parse($schedule->end_time);
-
-            while ($startTime->copy()->addMinutes($duration)->lte($endTime)) {
-                $slotStart = $startTime->format('H:i:s');
-                $slotEnd = $startTime->copy()->addMinutes($duration)->format('H:i:s');
-
-                $isAvailable = true;
-                foreach ($existingAppointments as $appointment) {
-                    if (($slotStart >= $appointment->start_time && $slotStart < $appointment->end_time) ||
-                        ($slotEnd > $appointment->start_time && $slotEnd <= $appointment->end_time) ||
-                        ($slotStart <= $appointment->start_time && $slotEnd >= $appointment->end_time)) {
-                        $isAvailable = false;
-                        break;
+                // Example: 15 min slots
+                while ($start->copy()->addMinutes(15)->lte($end)) {
+                    $timeString = $start->format('H:i');
+                    
+                    // Filter by search time range roughly if specified
+                    if ($this->searchTimeRange) {
+                        [$rangeStart, $rangeEnd] = explode('-', str_replace(' ', '', $this->searchTimeRange));
+                        if ($timeString >= $rangeStart && $timeString < $rangeEnd) {
+                            $slots[] = $timeString;
+                        }
+                    } else {
+                        $slots[] = $timeString;
                     }
+                    
+                    $start->addMinutes(15);
                 }
+            }
 
-                if ($isAvailable) {
-                    $slots[] = $startTime->format('H:i');
-                }
-
-                $startTime->addMinutes($duration);
+            if (count($slots) > 0) {
+                $this->availableDoctors[] = [
+                    'id' => $doctor->id,
+                    'name' => 'Dr. ' . $doctor->user->name,
+                    'initials' => collect(explode(' ', $doctor->user->name))->map(fn($n) => substr($n,0,1))->take(2)->implode(''),
+                    'specialty' => optional($doctor->specialty)->name,
+                    'slots' => $slots
+                ];
             }
         }
+        
+        $this->resetSelection();
+    }
 
-        return $slots;
+    public function selectSlot($doctorId, $doctorName, $time)
+    {
+        $this->selectedDoctorId = $doctorId;
+        $this->selectedDoctorName = $doctorName;
+        $this->selectedTime = $time;
+    }
+
+    public function resetSelection()
+    {
+        $this->selectedDoctorId = null;
+        $this->selectedDoctorName = null;
+        $this->selectedTime = null;
     }
 
     public function save()
     {
-        $this->validate();
+        $this->validate([
+            'selectedDoctorId' => 'required',
+            'searchDate' => 'required',
+            'selectedTime' => 'required',
+            'patient_id' => 'required|exists:patients,id',
+            'notes' => 'nullable|string',
+        ], [
+            'selectedDoctorId.required' => 'Debes seleccionar un horario.',
+            'patient_id.required' => 'El paciente es obligatorio.',
+        ]);
 
-        $endTime = Carbon::parse($this->start_time)->addMinutes(40)->format('H:i');
+        $startTime = Carbon::parse($this->searchDate . ' ' . $this->selectedTime);
+        $endTime = $startTime->copy()->addMinutes(15);
 
         Appointment::create([
             'patient_id' => $this->patient_id,
-            'doctor_id' => $this->doctor_id,
-            'specialty_id' => $this->specialty_id ?: null,
-            'date' => $this->date,
-            'start_time' => $this->start_time,
-            'end_time' => $endTime,
+            'doctor_id' => $this->selectedDoctorId,
+            'specialty_id' => Doctor::find($this->selectedDoctorId)->specialty_id ?? null,
+            'date' => $this->searchDate,
+            'start_time' => $startTime->format('H:i:s'),
+            'end_time' => $endTime->format('H:i:s'),
+            'notes' => $this->notes,
             'status' => 'Programado',
         ]);
 
         session()->flash('swal', [
             'icon' => 'success',
-            'title' => 'Éxito',
+            'title' => 'Cita Confirmada',
             'text' => 'Cita creada exitosamente.'
         ]);
 
@@ -122,10 +147,9 @@ class CreateAppointment extends Component
     public function render()
     {
         $patients = Patient::with('user')->get();
-        $doctors = Doctor::with('user', 'specialty')->get();
         $specialties = Specialty::all();
 
-        return view('livewire.admin.appointments.create-appointment', compact('patients', 'doctors', 'specialties'))
+        return view('livewire.admin.appointments.create-appointment', compact('patients', 'specialties'))
             ->layout('layouts.admin', [
                 'title' => 'Nueva Cita',
                 'breadcrumbs' => [
