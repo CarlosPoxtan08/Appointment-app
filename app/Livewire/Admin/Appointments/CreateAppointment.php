@@ -9,6 +9,7 @@ use App\Models\Specialty;
 use App\Models\Appointment;
 use App\Models\Schedule;
 use Carbon\Carbon;
+use App\Services\WhatsAppService;
 
 class CreateAppointment extends Component
 {
@@ -108,41 +109,63 @@ class CreateAppointment extends Component
         $this->selectedTime = null;
     }
 
-    public function save()
-    {
-        $this->validate([
-            'selectedDoctorId' => 'required',
-            'searchDate' => 'required',
-            'selectedTime' => 'required',
-            'patient_id' => 'required|exists:patients,id',
-            'notes' => 'nullable|string',
-        ], [
-            'selectedDoctorId.required' => 'Debes seleccionar un horario.',
-            'patient_id.required' => 'El paciente es obligatorio.',
-        ]);
+public function save()
+{
+    $this->validate([
+        'selectedDoctorId' => 'required',
+        'searchDate' => 'required',
+        'selectedTime' => 'required',
+        'patient_id' => 'required|exists:patients,id',
+        'notes' => 'nullable|string',
+    ], [
+        'selectedDoctorId.required' => 'Debes seleccionar un horario.',
+        'patient_id.required' => 'El paciente es obligatorio.',
+    ]);
 
-        $startTime = Carbon::parse($this->searchDate . ' ' . $this->selectedTime);
-        $endTime = $startTime->copy()->addMinutes(15);
+    $startTime = Carbon::parse($this->searchDate . ' ' . $this->selectedTime);
+    $endTime = $startTime->copy()->addMinutes(15);
 
-        Appointment::create([
-            'patient_id' => $this->patient_id,
-            'doctor_id' => $this->selectedDoctorId,
-            'specialty_id' => Doctor::find($this->selectedDoctorId)->specialty_id ?? null,
-            'date' => $this->searchDate,
-            'start_time' => $startTime->format('H:i:s'),
-            'end_time' => $endTime->format('H:i:s'),
-            'notes' => $this->notes,
-            'status' => 'Programado',
-        ]);
+    $appointment = Appointment::create([
+        'patient_id' => $this->patient_id,
+        'doctor_id' => $this->selectedDoctorId,
+        'specialty_id' => Doctor::find($this->selectedDoctorId)->specialty_id ?? null,
+        'date' => $this->searchDate,
+        'start_time' => $startTime->format('H:i:s'),
+        'end_time' => $endTime->format('H:i:s'),
+        'notes' => $this->notes,
+        'status' => 'Programado',
+    ]);
 
-        session()->flash('swal', [
-            'icon' => 'success',
-            'title' => 'Cita Confirmada',
-            'text' => 'Cita creada exitosamente.'
-        ]);
+    // Enviar confirmación por WhatsApp
+    try {
+        $patient = Patient::with('user')->find($this->patient_id);
+        $phone = $patient->user->phone;
+        $doctorName = $this->selectedDoctorName;
+        $date = Carbon::parse($this->searchDate)->format('d/m/Y');
+        $time = $this->selectedTime;
 
-        return redirect()->route('admin.appointments.index');
+        $message = "✅ *Confirmación de Cita Médica*\n\n"
+            . "Hola {$patient->user->name}, tu cita ha sido confirmada.\n\n"
+            . "👨‍⚕️ Doctor: {$doctorName}\n"
+            . "📅 Fecha: {$date}\n"
+            . "🕐 Hora: {$time}\n\n"
+            . "Por favor llega 10 minutos antes. ¡Te esperamos!";
+
+        $whatsapp = new WhatsAppService();
+        $whatsapp->sendMessage($phone, $message);
+
+    } catch (\Exception $e) {
+        \Log::error('Error enviando WhatsApp de confirmación: ' . $e->getMessage());
     }
+
+    session()->flash('swal', [
+        'icon' => 'success',
+        'title' => 'Cita Confirmada',
+        'text' => 'Cita creada exitosamente.'
+    ]);
+
+    return redirect()->route('admin.appointments.index');
+}
 
     public function render()
     {
