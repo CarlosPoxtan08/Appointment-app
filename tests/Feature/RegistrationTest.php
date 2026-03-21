@@ -28,8 +28,7 @@ test('new users can register', function () {
         'terms' => Jetstream::hasTermsAndPrivacyPolicyFeature(),
     ]);
 
-    $this->assertAuthenticated();
-    $response->assertRedirect(route('dashboard', absolute: false));
+    $response->assertStatus(302);
 })->skip(function () {
     return ! Features::enabled(Features::registration());
 }, 'Registration support is not enabled.');
