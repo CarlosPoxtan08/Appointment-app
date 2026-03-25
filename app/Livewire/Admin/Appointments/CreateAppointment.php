@@ -10,6 +10,9 @@ use App\Models\Appointment;
 use App\Models\Schedule;
 use Carbon\Carbon;
 use App\Services\WhatsAppService;
+use App\Mail\AppointmentConfirmedPatient;
+use App\Mail\AppointmentConfirmedDoctor;
+use Illuminate\Support\Facades\Mail;
 
 class CreateAppointment extends Component
 {
@@ -156,6 +159,20 @@ public function save()
 
     } catch (\Exception $e) {
         \Log::error('Error enviando WhatsApp de confirmación: ' . $e->getMessage());
+    }
+
+    // Enviar confirmación por correo electrónico
+     try {
+        $appointment->load(['patient.user', 'doctor.user', 'specialty']);
+
+        Mail::to($appointment->patient->user->email)
+            ->send(new AppointmentConfirmedPatient($appointment));
+
+        Mail::to($appointment->doctor->user->email)
+            ->send(new AppointmentConfirmedDoctor($appointment));
+
+    } catch (\Exception $e) {
+        \Log::error('Error enviando correos de confirmación: ' . $e->getMessage());
     }
 
     session()->flash('swal', [
